@@ -17,7 +17,12 @@ from ...classification import mobilenet_v3_large_r, mobilenet_v3_small_r, vgg16_
 from ...utils.pytorch import load_pretrained_params
 from ..core import RecognitionModel, RecognitionPostProcessor
 
-__all__ = ["CRNN", "crnn_vgg16_bn", "crnn_mobilenet_v3_small", "crnn_mobilenet_v3_large"]
+__all__ = [
+    "CRNN",
+    "crnn_vgg16_bn",
+    "crnn_mobilenet_v3_small",
+    "crnn_mobilenet_v3_large",
+]
 
 default_cfgs: Dict[str, Dict[str, Any]] = {
     "crnn_vgg16_bn": {
@@ -94,7 +99,9 @@ class CTCPostProcessor(RecognitionPostProcessor):
 
         """
         # Decode CTC
-        return self.ctc_best_path(logits=logits, vocab=self.vocab, blank=len(self.vocab))
+        return self.ctc_best_path(
+            logits=logits, vocab=self.vocab, blank=len(self.vocab)
+        )
 
 
 class CRNN(RecognitionModel, nn.Module):
@@ -109,7 +116,12 @@ class CRNN(RecognitionModel, nn.Module):
         cfg: configuration dictionary
     """
 
-    _children_names: List[str] = ["feat_extractor", "decoder", "linear", "postprocessor"]
+    _children_names: List[str] = [
+        "feat_extractor",
+        "decoder",
+        "linear",
+        "postprocessor",
+    ]
 
     def __init__(
         self,
@@ -153,7 +165,9 @@ class CRNN(RecognitionModel, nn.Module):
             if n.startswith("feat_extractor."):
                 continue
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight.data, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(
+                    m.weight.data, mode="fan_out", nonlinearity="relu"
+                )
                 if m.bias is not None:
                     m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
@@ -177,7 +191,9 @@ class CRNN(RecognitionModel, nn.Module):
         """
         gt, seq_len = self.build_target(target)
         batch_len = model_output.shape[0]
-        input_length = model_output.shape[1] * torch.ones(size=(batch_len,), dtype=torch.int32)
+        input_length = model_output.shape[1] * torch.ones(
+            size=(batch_len,), dtype=torch.int32
+        )
         # N x T x C -> T x N x C
         logits = model_output.permute(1, 0, 2)
         probs = F.log_softmax(logits, dim=-1)
@@ -201,8 +217,8 @@ class CRNN(RecognitionModel, nn.Module):
     ) -> Dict[str, Any]:
         if self.training and target is None:
             raise ValueError("Need to provide labels during training")
-
-        features = self.feat_extractor(x)
+        features = self.feat_extractor(x).to("cpu")
+        # features = self.feat_extractor(x.to(torch.device("mps")))
         # B x C x H x W --> B x C*H x W --> B x W x C*H
         c, h, w = features.shape[1], features.shape[2], features.shape[3]
         features_seq = torch.reshape(features, shape=(-1, h * c, w))
@@ -254,7 +270,9 @@ def _crnn(
     if pretrained:
         # The number of classes is not the same as the number of classes in the pretrained model =>
         # remove the last layer weights
-        _ignore_keys = ignore_keys if _cfg["vocab"] != default_cfgs[arch]["vocab"] else None
+        _ignore_keys = (
+            ignore_keys if _cfg["vocab"] != default_cfgs[arch]["vocab"] else None
+        )
         load_pretrained_params(model, _cfg["url"], ignore_keys=_ignore_keys)
 
     return model
@@ -277,7 +295,13 @@ def crnn_vgg16_bn(pretrained: bool = False, **kwargs: Any) -> CRNN:
         text recognition architecture
     """
 
-    return _crnn("crnn_vgg16_bn", pretrained, vgg16_bn_r, ignore_keys=["linear.weight", "linear.bias"], **kwargs)
+    return _crnn(
+        "crnn_vgg16_bn",
+        pretrained,
+        vgg16_bn_r,
+        ignore_keys=["linear.weight", "linear.bias"],
+        **kwargs,
+    )
 
 
 def crnn_mobilenet_v3_small(pretrained: bool = False, **kwargs: Any) -> CRNN:

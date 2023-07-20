@@ -50,7 +50,9 @@ class RecognitionPredictor(nn.Module):
             return []
         # Dimension check
         if any(crop.ndim != 3 for crop in crops):
-            raise ValueError("incorrect input shape: all crops are expected to be multi-channel 2D images.")
+            raise ValueError(
+                "incorrect input shape: all crops are expected to be multi-channel 2D images."
+            )
 
         # Split crops that are too wide
         remapped = False
@@ -70,10 +72,20 @@ class RecognitionPredictor(nn.Module):
 
         # Forward it
         _params = next(self.model.parameters())
+        # ANDY: following breaks upstream attempts to only use MPS for feature extractor
+        """
         self.model, processed_batches = set_device_and_dtype(
             self.model, processed_batches, _params.device, _params.dtype
         )
-        raw = [self.model(batch, return_preds=True, **kwargs)["preds"] for batch in processed_batches]
+        """
+        processed_batches = [
+            batch.to(device=_params.device, dtype=_params.dtype)
+            for batch in processed_batches
+        ]
+        raw = [
+            self.model(batch, return_preds=True, **kwargs)["preds"]
+            for batch in processed_batches
+        ]
 
         # Process outputs
         out = [charseq for batch in raw for charseq in batch]

@@ -54,7 +54,12 @@ class OCRPredictor(nn.Module, _OCRPredictor):
         self.det_predictor = det_predictor.eval()  # type: ignore[attr-defined]
         self.reco_predictor = reco_predictor.eval()  # type: ignore[attr-defined]
         _OCRPredictor.__init__(
-            self, assume_straight_pages, straighten_pages, preserve_aspect_ratio, symmetric_pad, **kwargs
+            self,
+            assume_straight_pages,
+            straighten_pages,
+            preserve_aspect_ratio,
+            symmetric_pad,
+            **kwargs,
         )
         self.detect_orientation = detect_orientation
         self.detect_language = detect_language
@@ -67,15 +72,21 @@ class OCRPredictor(nn.Module, _OCRPredictor):
     ) -> Document:
         # Dimension check
         if any(page.ndim != 3 for page in pages):
-            raise ValueError("incorrect input shape: all pages are expected to be multi-channel 2D images.")
+            raise ValueError(
+                "incorrect input shape: all pages are expected to be multi-channel 2D images."
+            )
 
-        origin_page_shapes = [page.shape[:2] if isinstance(page, np.ndarray) else page.shape[-2:] for page in pages]
+        origin_page_shapes = [
+            page.shape[:2] if isinstance(page, np.ndarray) else page.shape[-2:]
+            for page in pages
+        ]
 
         # Detect document rotation and rotate pages
         if self.detect_orientation:
             origin_page_orientations = [estimate_orientation(page) for page in pages]  # type: ignore[arg-type]
             orientations = [
-                {"value": orientation_page, "confidence": 1.0} for orientation_page in origin_page_orientations
+                {"value": orientation_page, "confidence": 1.0}
+                for orientation_page in origin_page_orientations
             ]
         else:
             orientations = None
@@ -114,13 +125,19 @@ class OCRPredictor(nn.Module, _OCRPredictor):
         if not self.assume_straight_pages:
             crops, loc_preds = self._rectify_crops(crops, loc_preds)
         # Identify character sequences
-        word_preds = self.reco_predictor([crop for page_crops in crops for crop in page_crops], **kwargs)
-
+        word_preds = self.reco_predictor(
+            [crop for page_crops in crops for crop in page_crops], **kwargs
+        )
         boxes, text_preds = self._process_predictions(loc_preds, word_preds)
 
         if self.detect_language:
-            languages = [get_language(" ".join([item[0] for item in text_pred])) for text_pred in text_preds]
-            languages_dict = [{"value": lang[0], "confidence": lang[1]} for lang in languages]
+            languages = [
+                get_language(" ".join([item[0] for item in text_pred]))
+                for text_pred in text_preds
+            ]
+            languages_dict = [
+                {"value": lang[0], "confidence": lang[1]} for lang in languages
+            ]
         else:
             languages_dict = None
         # Rotate back pages and boxes while keeping original image size
@@ -134,7 +151,9 @@ class OCRPredictor(nn.Module, _OCRPredictor):
                     else page.shape[1:],  # type: ignore[arg-type]
                     target_shape=mask,  # type: ignore[arg-type]
                 )
-                for page_boxes, page, angle, mask in zip(boxes, pages, origin_page_orientations, origin_page_shapes)
+                for page_boxes, page, angle, mask in zip(
+                    boxes, pages, origin_page_orientations, origin_page_shapes
+                )
             ]
 
         out = self.doc_builder(
